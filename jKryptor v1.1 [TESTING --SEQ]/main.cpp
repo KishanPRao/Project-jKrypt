@@ -125,26 +125,18 @@ int main()
     
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
     ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
-    
-    if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
-    {
-        block t;
+    block t;
         t.start(0,fsize);
-    }
-    else
+   /* block *t=new block[num_of_cores];
+    for(i=0;i<num_of_cores;i++)
     {
-        block *t=new block[num_of_cores];
-        #pragma omp parallel for
-        for(i=0;i<num_of_cores;i++)
-        {
-            t[i].start(i*length,((i+1)*length));
-        }
-        cout<<"\nCIPHER TEXT "<<endl;
-        for(i=0;i<num_of_cores;i++)
-        {
-            t[i].display();
-        }
+        t[i].start(i*length,((i+1)*length));
     }
+    cout<<"\nCIPHER TEXT "<<endl;
+    for(i=0;i<num_of_cores;i++)
+    {
+        t[i].display();
+    }*/
 
 //    t1.display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
 
@@ -177,6 +169,8 @@ void block::start(int beg,int end)
         cout<<"\nPLAIN TEXT\n";
         display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
         encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
+        cout<<"\nCIPHER TEXT "<<endl;
+        display();
     }
     fs.close();
 }
