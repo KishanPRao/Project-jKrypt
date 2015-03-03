@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1425312169 source:c:\users\kishan\documents\github\project-jkrypt\jkryptor v1.1\main.cpp
+1425397474 source:c:\users\kishan\documents\github\project-jkrypt\jkryptor v1.1\main.cpp
 	<iostream>
 	<conio.h>
 	<cstdio>
@@ -7,4 +7,6 @@
 	<fstream>
 	<sys/time.h>
 	<stdlib.h>
+	<stdio.h>
+	<cstring>
 

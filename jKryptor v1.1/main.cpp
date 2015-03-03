@@ -29,7 +29,11 @@
 #include <fstream>
 #include<sys/time.h>
 #include<stdlib.h>
-//#include <cstring>
+#include<stdio.h>
+#include <cstring>
+
+#define JK_ENCRYPT 1
+#define JK_DECRYPT 2
 
 using namespace std;
 
@@ -53,7 +57,7 @@ void keyExpansion();
 /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-char *filename="plaintext.txt";
+int num_of_cores;
 class block
 {
     private:
@@ -63,12 +67,13 @@ class block
         //int plainText[17]={0xEA,0x83,0x5C,0xF0,0x04,0x45,0x33,0x2D,0x65,0x5D,0x98,0xAD,0x85,0x96,0xB0,0xC5};
         //char plainText[17]={1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4};
         //int plainText[17]={0x87,0x6e,0x46,0xa6,0xf2,0x4c,0xe7,0x8c,0x4d,0x90,0x4a,0xd8,0x97,0xec,0xc3,0x95};
-
         int state[4][4],tempState[4][4],temp;
         ifstream fs;
         ofstream temp_fs;
-        char plaintext[17];
+        char text[17];
     public:
+        static unsigned short mode;
+        static char *fname;
 
         void display()
         {
@@ -85,7 +90,7 @@ class block
             temp=0;
             for(int j=0;j<4;++j)
                 for(int i=0;i<4;++i)
-                    state[i][j]=plaintext[temp++];
+                    state[i][j]=text[temp++];
 
         }
 
@@ -105,16 +110,58 @@ class block
 ifstream::pos_type filesize(const char* filename)
 {
     ifstream in(filename, ifstream::ate | ifstream::binary);
-    return in.tellg(); 
+    int val= in.tellg(); 
+    in.close();
+    return val;
 }
 
+void begin(string,unsigned short);
+
+unsigned short block::mode;
+char* block::fname;
 int main()
 {
-    int i;
-    int num_of_cores=omp_get_num_procs();//the number of logical cores present
-    int fsize=filesize(filename);//the file size
-    int length=fsize/num_of_cores;//used for determining the length each thread must read
+    string filename;
+    int opt;
+    num_of_cores=omp_get_num_procs();//the number of logical cores present
+    while(1)
+    {
+        filename.clear();
+        cout<<"1 : Encrypt\n2 : Decrypt\n3 : Exit\n";
+        cin>>opt;
+        switch(opt)
+        {
+            case 1:
+                cout<<"Enter the file to be encrypted : "<<endl;
+                cin>>filename;
+                begin(filename,JK_ENCRYPT);
+                break;
+            case 2:
+                cout<<"Enter the file to be decrypted : "<<endl;
+                cin>>filename;
+                begin(filename,JK_DECRYPT);
+                break;
+            case 3:
+                exit(0);
+            default:
+                ;
+        }
+    }
+    return 0;
+}
+
+void begin(string fn,unsigned short md)
+{
+    int fsize=filesize(fn.c_str());//the file sizethread must read
+    //cout<<fsize;
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
+    block::fname=new char[fn.size()+1];
+    strcpy(block::fname,fn.c_str());
+    block::fname[fn.size()]='\0';
+    block::mode=md;
+    if(fsize==0)
+        exit(0);
+    int length=fsize/num_of_cores;//used for determining the length each 
     ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
     remove("ciphertext.txt");
     if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
@@ -127,7 +174,7 @@ int main()
     {
         block *t=new block[num_of_cores];//Create as many threads as the number of logical processors available
         #pragma omp parallel for
-        for(i=0;i<num_of_cores;i++)
+        for(int i=0;i<num_of_cores;i++)
         {
             t[i].start(i*length,((i+1)*length),i);
         }
@@ -135,9 +182,9 @@ int main()
         cipher.open("AEStemp0",ios::app);
         cipher.seekp(0,ios::end);
         ifstream input;
-        for(i=1;i<num_of_cores;i++)
+        for(int i=1;i<num_of_cores;i++)
         {
-            char c[2];
+            char c[2];//For now, 2. Depends on number of digits in num_of_cores
             sprintf(c,"%d",i);
             string str_temp="AEStemp";
             str_temp.append(c);
@@ -148,22 +195,21 @@ int main()
         }
         cipher.close();
         rename("AEStemp0","ciphertext.txt");
+        delete[] t;
     }
 
  //   t1.decrypt(); //DECRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
   //  t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
-
+    delete[] block::fname;
     cout<<"\n\nProgram successfully executed!\n\n\n";
-    getch();
-    return 0;
 }
 
 ///CLASS FUNCTIONS DEFINITIONS////////////////////////////////////////////////////////////////////////////////////////
 void block::start(int beg,int end,int fcnt)
 {
-    size_t read;
     //cout<<"BEG : "<<beg<<" END : "<<end<<endl;
-    fs.open(filename);
+    size_t read;
+    fs.open(fname);
     fs.seekg(beg);
     char c[2];
     sprintf(c,"%d",fcnt);
@@ -173,9 +219,9 @@ void block::start(int beg,int end,int fcnt)
     //get 16 blocks in a loop
     while(fs.tellg()<end && !fs.eof())
     {
-        read=fs.read(plaintext,16).gcount();
+        read=fs.read(text,16).gcount();
         while(read<16)
-            plaintext[read++]=' ';
+            text[read++]='\0';
         createState();//CREATES A 4X4 STATE TO BE WORKED ON
         //cout<<"\nPLAIN TEXT\n";
         //display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
@@ -184,6 +230,7 @@ void block::start(int beg,int end,int fcnt)
         {
             for(int i=0;i<4;++i)
             temp_fs<<hex<<state[j][i];
+            //temp_fs<<endl;
         }
     }
     fs.close();

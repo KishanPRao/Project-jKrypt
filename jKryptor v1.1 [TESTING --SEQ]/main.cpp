@@ -195,7 +195,7 @@ void block::start(int beg,int end)
         read=fs.read(plaintext,16).gcount();
         //cout<<"\nREAD1 : "<<read<<" PLAIN : "<<plaintext<<endl;
         while(read<16)
-            plaintext[read++]=' ';
+            plaintext[read++]='\0';
         //cout<<"\nREAD2 : "<<read<<" PLAIN : "<<plaintext<<endl;
         createState();//CREATES A 4X4 STATE TO BE WORKED ON
         cout<<"\nPLAIN TEXT\n";
