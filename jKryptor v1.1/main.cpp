@@ -31,9 +31,10 @@
 #include<stdlib.h>
 #include<stdio.h>
 #include <cstring>
+#include<sys/stat.h>
 
-#define JK_ENCRYPT 1
-#define JK_DECRYPT 2
+#define JK_ENCRYPT 0
+#define JK_DECRYPT 1
 
 using namespace std;
 
@@ -50,8 +51,8 @@ int inverseSBox[256]={0x52, 0x09, 0x6A, 0xD5, 0x30, 0x36, 0xA5, 0x38, 0xBF, 0x40
 ///KEY HANDLING////////////////////////////////////////////////////////////////////////////////////////////////////
 int RC[11]={0,0x1,0x2,0x4,0x8,0x10,0x20,0x40,0x80,0x1B,0x36}, Rcon[4]={0,0,0,0};
 //char keyText[17];
-//int keyText[17]={0x0f,0x15,0x71,0xc9,0x47,0xd9,0xe8,0x59,0x0c,0xb7,0xad,0xd6,0xaf,0x7f,0x67,0x98};
-int keyText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
+int keyText[17]={0x0f,0x15,0x71,0xc9,0x47,0xd9,0xe8,0x59,0x0c,0xb7,0xad,0xd6,0xaf,0x7f,0x67,0x98};
+//int keyText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
 int roundKey[44][4];
 void keyExpansion();
 /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +72,7 @@ class block
         ifstream fs;
         ofstream temp_fs;
         char text[17];
+        int dec_text[17];
     public:
         static unsigned short mode;
         static char *fname;
@@ -84,13 +86,31 @@ class block
                 cout<<endl;
             }
         }
+        
+        void invCreateState()
+        {
+            temp=0;
+            for(int j=0;j<4;++j)
+                for(int i=0;i<4;++i)
+                {
+                    //cout<<"i "<<i<<" j "<<j<<" "<<dec_text[temp]<<"\t";
+                    state[j][i]=dec_text[temp++];
+                }
+                //cout<<endl;
+            //display();
+        }
+        
         void createState()
         {
             //int plainText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
             temp=0;
             for(int j=0;j<4;++j)
                 for(int i=0;i<4;++i)
+                {
+                    //cout<<"i "<<i<<" j "<<j<<" "<<(int)text[temp]<<"\t";
                     state[i][j]=text[temp++];
+                }
+            //display();
 
         }
 
@@ -115,7 +135,7 @@ ifstream::pos_type filesize(const char* filename)
     return val;
 }
 
-void begin(string,unsigned short);
+void begin(string,unsigned short,string);
 
 unsigned short block::mode;
 char* block::fname;
@@ -134,23 +154,34 @@ int main()
             case 1:
                 cout<<"Enter the file to be encrypted : "<<endl;
                 cin>>filename;
-                begin(filename,JK_ENCRYPT);
+                struct stat s;
+                if(stat(filename.c_str(),&s)==-1)
+                {
+                    cout<<"File Does Not Exist\nPlease Try again\n";
+                    break;
+                }
+                begin(filename,JK_ENCRYPT,"c.txt");
                 break;
             case 2:
                 cout<<"Enter the file to be decrypted : "<<endl;
                 cin>>filename;
-                begin(filename,JK_DECRYPT);
+                if(stat(filename.c_str(),&s)==-1)
+                {
+                    cout<<"File Does Not Exist\nPlease Try again\n";
+                    break;
+                }
+                begin(filename,JK_DECRYPT,"plaintext.txt");
                 break;
             case 3:
                 exit(0);
             default:
-                ;
+                cout<<"Invalid Option\n";
         }
     }
     return 0;
 }
 
-void begin(string fn,unsigned short md)
+void begin(string fn,unsigned short md,string outfile)
 {
     int fsize=filesize(fn.c_str());//the file sizethread must read
     //cout<<fsize;
@@ -163,12 +194,12 @@ void begin(string fn,unsigned short md)
         exit(0);
     int length=fsize/num_of_cores;//used for determining the length each 
     ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
-    remove("ciphertext.txt");
+    remove(outfile.c_str());
     if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
     {
         block t;
         t.start(0,fsize,-1);
-        rename("AEStemp-1","ciphertext.txt");
+        rename("AEStemp-1",outfile.c_str());
     }
     else
     {
@@ -194,14 +225,14 @@ void begin(string fn,unsigned short md)
             remove(str_temp.c_str());
         }
         cipher.close();
-        rename("AEStemp0","ciphertext.txt");
+        rename("AEStemp0",outfile.c_str());
         delete[] t;
     }
 
  //   t1.decrypt(); //DECRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
   //  t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
     delete[] block::fname;
-    cout<<"\n\nProgram successfully executed!\n\n\n";
+    cout<<"\n\Operation successfully executed!\n\n\n";
 }
 
 ///CLASS FUNCTIONS DEFINITIONS////////////////////////////////////////////////////////////////////////////////////////
@@ -219,17 +250,59 @@ void block::start(int beg,int end,int fcnt)
     //get 16 blocks in a loop
     while(fs.tellg()<end && !fs.eof())
     {
-        read=fs.read(text,16).gcount();
-        while(read<16)
-            text[read++]='\0';
-        createState();//CREATES A 4X4 STATE TO BE WORKED ON
+        text[16]='\0';
+        if(!mode)
+        {
+            read=fs.read(text,16).gcount();
+            //cout<<"READ : "<<read<< " "<<text<<endl;
+            while(read<16)
+                text[read++]='\0';
+            createState();//CREATES A 4X4 STATE TO BE WORKED ON
+        }
+        else
+        {
+            int i=0;
+            while(i<16)
+            {
+                char c[3];
+                fs.read(c,2);
+                dec_text[i]=strtol(c,NULL,16);
+                //cout<<dec_text[i]<<endl;
+                i++;
+            }
+            invCreateState();
+        }
         //cout<<"\nPLAIN TEXT\n";
         //display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
-        encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
+        if(!mode)
+            encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
+        else
+            decrypt();
+        //display();
         for(int j=0;j<4;++j)
         {
             for(int i=0;i<4;++i)
-            temp_fs<<hex<<state[j][i];
+            {
+                //cout<<"VAL : "<<state[j][i]<<endl;
+                if(!mode)
+                {
+                    if(((state[j][i]/16)==0))
+                        temp_fs<<"0";
+                    //cout<<"j : "<<j<<" i : "<<i<<" "<<state[j][i]<<endl;
+                    temp_fs<<hex<<state[j][i];
+                }
+                else
+                {
+                    if(state[i][j]==0)
+                    {
+                        fs.close();
+                        temp_fs.close();
+                        return;
+                    }
+                    //cout<<"i : "<<i<<" j : "<<j<<" "<<(char)state[i][j]<<endl;
+                    temp_fs<<(char)state[i][j];
+                }
+            }
             //temp_fs<<endl;
         }
     }
