@@ -162,9 +162,8 @@ int main()
     while(1)
     {
         filename.clear();
-        cout<<"\nMENU\n1) Encrypt\n2) Decrypt\n3) Exit\n\nEnter your choice: \n";
-	choice:        
-	cin>>opt;
+        cout<<"1 : Encrypt\n2 : Decrypt\n3 : Exit\n";
+        cin>>opt;
         switch(opt)
         {
             case 1:
@@ -177,7 +176,6 @@ int main()
                     break;
                 }
                 begin(filename,JK_ENCRYPT,"c.txt");
-		cout<<"\nFile successfully encrypted! Open file manually to view.\n";
                 break;
             case 2:
                 cout<<"Enter the file to be decrypted : "<<endl;
@@ -188,26 +186,19 @@ int main()
                     break;
                 }
                 begin(filename,JK_DECRYPT,"plaintext.txt");
-		cout<<"\nFile successfully decrypted! Open file manually to view.\n";
                 break;
             case 3:
                 exit(0);
             default:
-                cout<<"\n Invalid Option! Enter choice(1-3): \n";
-		goto choice;
+                cout<<"Invalid Option\n";
         }
     }
-    /*begin("1.txt",JK_ENCRYPT,"c.txt");
-    cout<<"-----------------DEC--------------\n";
-    begin("c.txt",JK_DECRYPT,"plaintext.txt");*/
     return 0;
 }
 
 void begin(string fn,unsigned short md,string outfile)
 {
     int fsize=filesize(fn.c_str());//the file sizethread must read
-    if(md)
-        fsize/=2;
     //cout<<fsize;
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
     block::fname=new char[fn.size()+1];
@@ -231,13 +222,11 @@ void begin(string fn,unsigned short md,string outfile)
     {
         multi=true;
         max=num_of_cores*16*blocks;
-        if(md)
-            max*=2;
     }
     if((single_block=partitions%num_of_cores)>0||(blocks==0))//Cannot properly divide partitions over threads.
         single_thread=true;
-    //cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks "<<blocks<< " Num of Cores "<<num_of_cores<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
-    ///NxOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
+    cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks "<<blocks<< " Num of Cores "<<num_of_cores<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
+    ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
     remove(outfile.c_str());
     /*if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
     {
@@ -248,12 +237,9 @@ void begin(string fn,unsigned short md,string outfile)
     else*/
     if(multi)
     {
-        //cout<<"MULTI\n";
         int start_offset=blocks*16;
-        if(md)
-            start_offset*=2;
         block *t=new block[num_of_cores];//Create as many threads as the number of logical processors available
-        #pragma omp parallel for  num_threads(4)
+        //#pragma omp parallel for
         for(int i=0;i<num_of_cores;i++)
         {
             t[i].start(i*start_offset,blocks,i);
@@ -279,16 +265,15 @@ void begin(string fn,unsigned short md,string outfile)
         rename("AEStemp0",outfile.c_str());
         delete[] t;
     }
+    cout<<"SINGLE\n";
     if(single_thread)
     {
-        //cout<<"SINGLE\n";
         block single;
         single.single_start(max,single_block,outfile);
     }
-    max=max+(single_block*16);
+    cout<<"APPEND\n";
     if(app)
     {
-        //cout<<"APPEND\n";
         app_start=true;
         block single;
         single.single_start(max,1,outfile);
@@ -296,7 +281,7 @@ void begin(string fn,unsigned short md,string outfile)
  //   t1.decrypt(); //DECRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
   //  t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
     delete[] block::fname;
-    //cout<<"\n\Operation successfully executed!\n\n\n";
+    cout<<"\n\Operation successfully executed!\n\n\n";
 }
 
 
@@ -318,8 +303,8 @@ void block::single_start(int beg,int num_blocks,string ofile)
 
 void block::start(int beg,int num_blocks,int fcnt)
 {
-    //if(mode)
-        //num_blocks/=2;//HEX values are retrieved, having double the character values.
+    if(mode)
+        num_blocks/=2;//HEX values are retrieved, having double the character values.
     //cout<<"BEG : "<<beg<<" BLOCKS : "<<num_blocks<<endl;
     size_t read;
     fs.open(fname,ios::binary);
@@ -389,7 +374,7 @@ void block::start(int beg,int num_blocks,int fcnt)
                         temp_fs.close();
                         return;
                     }
-                    //cout<<"i : "<<i<<" j : "<<j<<" "<<(char)state[i][j]<<endl;
+                    cout<<"i : "<<i<<" j : "<<j<<" "<<(char)state[i][j]<<endl;
                     temp_fs<<(char)state[i][j];
                 }
             }
@@ -397,7 +382,6 @@ void block::start(int beg,int num_blocks,int fcnt)
         }
         block++;
     }
-    fs.tellg();//Weird problem if removed.
     //cout<<"FINAL POS : "<<fs.tellg()<<"----"<<endl;
     fs.close();
     temp_fs.close();
