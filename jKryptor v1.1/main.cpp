@@ -236,7 +236,7 @@ void begin(string fn,unsigned short md,string outfile)
     }
     if((single_block=partitions%num_of_cores)>0||(blocks==0))//Cannot properly divide partitions over threads.
         single_thread=true;
-    //cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks "<<blocks<< " Num of Cores "<<num_of_cores<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
+    cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks "<<blocks<< " Num of Cores "<<num_of_cores<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
     ///NxOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
     remove(outfile.c_str());
     /*if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
@@ -259,7 +259,7 @@ void begin(string fn,unsigned short md,string outfile)
             t[i].start(i*start_offset,blocks,i);
         }
         ofstream cipher;
-        cipher.open("AEStemp0",ios::app);
+        cipher.open("AEStemp0",ios::app|ios::out|ios::binary);
         cipher.seekp(0,ios::end);
         ifstream input;
         for(int i=1;i<num_of_cores;i++)
@@ -268,10 +268,16 @@ void begin(string fn,unsigned short md,string outfile)
             sprintf(c,"%d",i);
             string str_temp="AEStemp";
             str_temp.append(c);
-            input.open(str_temp.c_str(),ios::binary);
+            input.open(str_temp.c_str(),ios::binary);//If ios::binary included, includes new line to each line
             cipher<<input.rdbuf();
-            //cipher<<get_file_contents(str_temp.c_str());
             //cout<<input.rdbuf();
+            //tmp=get_file_contents(str_temp.c_str());
+            //input.read(buf,tmpsize);
+            //cout<<tmp;
+            //cipher<<tmp;
+            //getline(input,tmp);
+            //cipher<<tmp;
+            //cipher.write(buf,tmpsize);
             input.close();
             remove(str_temp.c_str());
         }
@@ -285,7 +291,7 @@ void begin(string fn,unsigned short md,string outfile)
         block single;
         single.single_start(max,single_block,outfile);
     }
-    max=max+(single_block*16);
+    max=max+(single_block*16);//For the final block, if append present.
     if(app)
     {
         //cout<<"APPEND\n";
@@ -293,8 +299,6 @@ void begin(string fn,unsigned short md,string outfile)
         block single;
         single.single_start(max,1,outfile);
     }
- //   t1.decrypt(); //DECRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
-  //  t1.display();  //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
     delete[] block::fname;
     //cout<<"\n\Operation successfully executed!\n\n\n";
 }
@@ -307,7 +311,7 @@ void block::single_start(int beg,int num_blocks,string ofile)
     ifstream input;
     ofstream cipher;
     input.open("AESTemp-1",ios::binary);
-    cipher.open(ofile.c_str(),ios::app);
+    cipher.open(ofile.c_str(),ios::app|ios::binary);
     cipher.seekp(0,ios::end);
     cipher<<input.rdbuf();
     //cipher<<get_file_contents("AESTemp-1");
