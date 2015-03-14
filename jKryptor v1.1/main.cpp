@@ -23,7 +23,6 @@
 /// ////////////////////////////////////////////////////////////////////////////////
 
 #include <iostream>
-#include <conio.h>
 #include <cstdio>
 #include <omp.h>
 #include <fstream>
@@ -32,6 +31,7 @@
 #include<stdio.h>
 #include <cstring>
 #include<sys/stat.h>
+#include<sys/time.h>
 
 #define JK_ENCRYPT 0
 #define JK_DECRYPT 1
@@ -150,6 +150,32 @@ std::string get_file_contents(const char *filename)
   }
 }
 
+long long
+timeval_diff(struct timeval *difference,
+             struct timeval *end_time,
+             struct timeval *start_time
+            )
+{
+  struct timeval temp_diff;
+
+  if(difference==NULL)
+  {
+    difference=&temp_diff;
+  }
+
+  difference->tv_sec =end_time->tv_sec -start_time->tv_sec ;
+  difference->tv_usec=end_time->tv_usec-start_time->tv_usec;
+
+  while(difference->tv_usec<0)
+  {
+    difference->tv_usec+=1000000;
+    difference->tv_sec -=1;
+  }
+
+  return 1000000LL*difference->tv_sec+
+                   difference->tv_usec;
+
+}
 void begin(string,unsigned short,string);
 
 unsigned short block::mode;
@@ -205,6 +231,8 @@ int main()
 
 void begin(string fn,unsigned short md,string outfile)
 {
+    struct timeval start,stop,diff;
+    gettimeofday(&start,NULL);
     int fsize=filesize(fn.c_str());//the file sizethread must read
     if(md)
         fsize/=2;
@@ -236,7 +264,7 @@ void begin(string fn,unsigned short md,string outfile)
     }
     if((single_block=partitions%num_of_cores)>0||(blocks==0))//Cannot properly divide partitions over threads.
         single_thread=true;
-    cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks "<<blocks<< " Num of Cores "<<num_of_cores<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
+    //cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks "<<blocks<< " Num of Cores "<<num_of_cores<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
     ///NxOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
     remove(outfile.c_str());
     /*if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
@@ -259,14 +287,14 @@ void begin(string fn,unsigned short md,string outfile)
             t[i].start(i*start_offset,blocks,i);
         }
         ofstream cipher;
-        cipher.open("AEStemp0",ios::app|ios::out|ios::binary);
+        cipher.open("AESTemp0",ios::app|ios::out|ios::binary);
         cipher.seekp(0,ios::end);
         ifstream input;
         for(int i=1;i<num_of_cores;i++)
         {
             char c[2];//For now, 2. Depends on number of digits in num_of_cores
             sprintf(c,"%d",i);
-            string str_temp="AEStemp";
+            string str_temp="AESTemp";
             str_temp.append(c);
             input.open(str_temp.c_str(),ios::binary);//If ios::binary included, includes new line to each line
             cipher<<input.rdbuf();
@@ -282,7 +310,7 @@ void begin(string fn,unsigned short md,string outfile)
             remove(str_temp.c_str());
         }
         cipher.close();
-        rename("AEStemp0",outfile.c_str());
+        rename("AESTemp0",outfile.c_str());
         delete[] t;
     }
     if(single_thread)
@@ -300,6 +328,14 @@ void begin(string fn,unsigned short md,string outfile)
         single.single_start(max,1,outfile);
     }
     delete[] block::fname;
+    gettimeofday(&stop,NULL);
+    timeval_diff(&diff,&stop,&start);
+    string str;
+    if(md)
+        str="Decryption";
+    else
+        str="Encryption";
+    cout<<"Time taken for Parallel Execution of "<<str<<" : ("<<diff.tv_sec<<","<<diff.tv_usec<<")"<<endl;
     //cout<<"\n\Operation successfully executed!\n\n\n";
 }
 
@@ -330,13 +366,13 @@ void block::start(int beg,int num_blocks,int fcnt)
     fs.seekg(beg);
     char c[2];
     sprintf(c,"%d",fcnt);
-    string str_temp="AEStemp";
+    string str_temp="AESTemp";
     str_temp.append(c);
     temp_fs.open(str_temp.c_str(),ios::binary);
     //get 16 blocks in a loop
     int block=0;
     //cout<<"Blocks : "<<num_blocks<<endl;
-    while(block<num_blocks)// && !fs.eof()
+    while(block<num_blocks && !fs.eof())
     {
         text[16]='\0';
         if(!mode)
