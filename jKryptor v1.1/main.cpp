@@ -62,12 +62,6 @@ int num_of_cores;
 class block
 {
     private:
-
-        ///plainText[17] declaration required here.
-        //char plainText[17];
-        //int plainText[17]={0xEA,0x83,0x5C,0xF0,0x04,0x45,0x33,0x2D,0x65,0x5D,0x98,0xAD,0x85,0x96,0xB0,0xC5};
-        //char plainText[17]={1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4};
-        //int plainText[17]={0x87,0x6e,0x46,0xa6,0xf2,0x4c,0xe7,0x8c,0x4d,0x90,0x4a,0xd8,0x97,0xec,0xc3,0x95};
         int state[4][4],tempState[4][4],temp;
         ifstream fs;
         ofstream temp_fs;
@@ -87,34 +81,24 @@ class block
             }
         }
         
-        void invCreateState()
-        {
-            temp=0;
-            for(int j=0;j<4;++j)
-                for(int i=0;i<4;++i)
-                {
-                    //cout<<"i "<<i<<" j "<<j<<" "<<dec_text[temp]<<"\t";
-                    state[j][i]=dec_text[temp++];
-                }
-                //cout<<endl;
-            //display();
-        }
-        
         void createState()
         {
-            //int plainText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
             temp=0;
             for(int j=0;j<4;++j)
                 for(int i=0;i<4;++i)
-                {
-                    //cout<<"i "<<i<<" j "<<j<<" "<<(int)text[temp]<<"\t";
                     state[i][j]=text[temp++];
-                }
-            //display();
-
         }
 
+        void invCreateState()//Need an transposed matrix for decryption, as it receives values in this order
+        {
+            temp=0;
+            for(int j=0;j<4;++j)
+                for(int i=0;i<4;++i)
+                    state[j][i]=dec_text[temp++];
+        }
+        
         ///BELOW CLASS FUNCTIONS MUST NOT BE MODIFIED
+        //Encryption/Decryption functions
         void mixColumns();
         void inverseMixColumns();
         void shiftRows();
@@ -124,6 +108,7 @@ class block
         void addRoundKey(int roundNumber);
         void encrypt();
         void decrypt();
+        //Multicore & File handling functions
         void start(int beg,int blocks,int fcnt);
         void single_start(int beg,int blocks,string ofile);
 };
@@ -135,21 +120,8 @@ ifstream::pos_type filesize(const char* filename)
     in.close();
     return val;
 }
-std::string get_file_contents(const char *filename)
-{
-  std::ifstream in(filename, std::ios::in | std::ios::binary);
-  if (in)
-  {
-    std::string contents;
-    in.seekg(0, std::ios::end);
-    contents.reserve(in.tellg());
-    in.seekg(0, std::ios::beg);
-    contents.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    in.close();
-    return(contents);
-  }
-}
 
+//Used for calculating the time differences
 long long
 timeval_diff(struct timeval *difference,
              struct timeval *end_time,
@@ -176,7 +148,8 @@ timeval_diff(struct timeval *difference,
                    difference->tv_usec;
 
 }
-void begin(string,unsigned short,string);
+
+void begin(string,bool,string);
 
 unsigned short block::mode;
 char* block::fname;
@@ -190,10 +163,21 @@ int main()
         filename.clear();
         cout<<"\nMENU\n1) Encrypt\n2) Decrypt\n3) Exit\n\nEnter your choice: \n";
 	choice:        
-	cin>>opt;
+        //;
+        if(!(cin>>opt))
+        {
+            cout<<"\nInvalid Option! Enter choice(1-3): \n";
+            cin.clear();
+            while(cin.get()!='\n');
+            goto choice;
+        }
         switch(opt)
         {
             case 1:
+                #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+                system("CLS");
+                #endif
+                cout<<"-----------ENCRYPTION----------\n\n";
                 cout<<"Enter the file to be encrypted : "<<endl;
                 cin>>filename;
                 struct stat s;
@@ -203,9 +187,14 @@ int main()
                     break;
                 }
                 begin(filename,JK_ENCRYPT,"c.txt");
-		cout<<"\nFile successfully encrypted! Open file manually to view.\n";
+                cout<<"File successfully encrypted! Open file manually to view.\n\n";
+                cout<<"-----------ENCRYPTION----------\n\n";
                 break;
             case 2:
+                #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+                system("CLS");
+                #endif
+                cout<<"-----------DECRYPTION----------\n\n";
                 cout<<"Enter the file to be decrypted : "<<endl;
                 cin>>filename;
                 if(stat(filename.c_str(),&s)==-1)
@@ -214,30 +203,34 @@ int main()
                     break;
                 }
                 begin(filename,JK_DECRYPT,"plaintext.txt");
-		cout<<"\nFile successfully decrypted! Open file manually to view.\n";
+                cout<<"\nFile successfully decrypted! Open file manually to view.\n\n";
+                cout<<"-----------DECRYPTION----------\n\n";
                 break;
             case 3:
                 exit(0);
             default:
-                cout<<"\n Invalid Option! Enter choice(1-3): \n";
+                cout<<"\nInvalid Option! Enter choice(1-3): \n";
 		goto choice;
         }
     }
-    /*begin("1.txt",JK_ENCRYPT,"c.txt");
-    cout<<"-----------------DEC--------------\n";
+    /*
+    cout<<"-----------------ENCRYPTION--------------\n";
+    begin("1.txt",JK_ENCRYPT,"c.txt");
+    cout<<"-----------------DECRYPTION--------------\n";
     begin("c.txt",JK_DECRYPT,"plaintext.txt");*/
+    //Used for convinient testing
     return 0;
 }
 
-void begin(string fn,unsigned short md,string outfile)
+void begin(string fn,bool md,string outfile)
 {
     struct timeval start,stop,diff;
     gettimeofday(&start,NULL);
-    int fsize=filesize(fn.c_str());//the file sizethread must read
+    int fsize=filesize(fn.c_str());
     if(md)
         fsize/=2;
-    //cout<<fsize;
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
+    ///NOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
     block::fname=new char[fn.size()+1];
     strcpy(block::fname,fn.c_str());
     block::fname[fn.size()]='\0';
@@ -249,9 +242,6 @@ void begin(string fn,unsigned short md,string outfile)
     int max=0;
     float single_block=0.0;
     bool app=false,single_thread=false,multi=false;
-    /*if((app_bytes=fsize%16)>0)//If leftover from 16 byte division, append must be done
-        app=true;*/
-    //app_bytes=fsize%16;
     if((fsize%16)>0)
         app=true;
     int blocks=partitions/num_of_cores;//Block for each thread to execute
@@ -264,24 +254,16 @@ void begin(string fn,unsigned short md,string outfile)
     }
     if((single_block=partitions%num_of_cores)>0||(blocks==0))//Cannot properly divide partitions over threads.
         single_thread=true;
-    //cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks "<<blocks<< " Num of Cores "<<num_of_cores<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
-    ///NxOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
+    /*cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Blocks : "<<blocks<< " Num of Cores : "<<num_of_cores<<" Single Bl : "<<single_block<<" Append : "<<app<<endl;*/
+    //Used for retrieving all the critical values
     remove(outfile.c_str());
-    /*if((length/16)<1)//If the content cannot be properly subdivided among the threads, execute sequentially
+    if(multi)//Prallelism necessary
     {
-        block t;
-        t.start(0,fsize,-1);
-        rename("AEStemp-1",outfile.c_str());
-    }
-    else*/
-    if(multi)
-    {
-        //cout<<"MULTI\n";
         int start_offset=blocks*16;
         if(md)
             start_offset*=2;
         block *t=new block[num_of_cores];//Create as many threads as the number of logical processors available
-        #pragma omp parallel for  num_threads(4)
+        #pragma omp parallel for
         for(int i=0;i<num_of_cores;i++)
         {
             t[i].start(i*start_offset,blocks,i);
@@ -292,20 +274,12 @@ void begin(string fn,unsigned short md,string outfile)
         ifstream input;
         for(int i=1;i<num_of_cores;i++)
         {
-            char c[2];//For now, 2. Depends on number of digits in num_of_cores
+            char c[2];//For now, 2. It depends on the number of digits in num_of_cores
             sprintf(c,"%d",i);
             string str_temp="AESTemp";
             str_temp.append(c);
-            input.open(str_temp.c_str(),ios::binary);//If ios::binary included, includes new line to each line
+            input.open(str_temp.c_str(),ios::binary);
             cipher<<input.rdbuf();
-            //cout<<input.rdbuf();
-            //tmp=get_file_contents(str_temp.c_str());
-            //input.read(buf,tmpsize);
-            //cout<<tmp;
-            //cipher<<tmp;
-            //getline(input,tmp);
-            //cipher<<tmp;
-            //cipher.write(buf,tmpsize);
             input.close();
             remove(str_temp.c_str());
         }
@@ -315,14 +289,12 @@ void begin(string fn,unsigned short md,string outfile)
     }
     if(single_thread)
     {
-        //cout<<"SINGLE\n";
         block single;
         single.single_start(max,single_block,outfile);
     }
-    max=max+(single_block*16);//For the final block, if append present.
+    max=max+(single_block*16);//For the final block, if text is to be appended.
     if(app)
     {
-        //cout<<"APPEND\n";
         app_start=true;
         block single;
         single.single_start(max,1,outfile);
@@ -335,8 +307,11 @@ void begin(string fn,unsigned short md,string outfile)
         str="Decryption";
     else
         str="Encryption";
+    cout<<"\n_________________________________________________";
+    cout<<"\n-------------------------------------------------\n";
     cout<<"Time taken for Parallel Execution of "<<str<<" : ("<<diff.tv_sec<<","<<diff.tv_usec<<")"<<endl;
-    //cout<<"\n\Operation successfully executed!\n\n\n";
+    cout<<"_________________________________________________";
+    cout<<"\n-------------------------------------------------\n\n";
 }
 
 
@@ -350,7 +325,6 @@ void block::single_start(int beg,int num_blocks,string ofile)
     cipher.open(ofile.c_str(),ios::app|ios::binary);
     cipher.seekp(0,ios::end);
     cipher<<input.rdbuf();
-    //cipher<<get_file_contents("AESTemp-1");
     input.close();
     remove("AESTemp-1");
     cipher.close();
@@ -358,67 +332,50 @@ void block::single_start(int beg,int num_blocks,string ofile)
 
 void block::start(int beg,int num_blocks,int fcnt)
 {
-    //if(mode)
-        //num_blocks/=2;//HEX values are retrieved, having double the character values.
-    //cout<<"BEG : "<<beg<<" BLOCKS : "<<num_blocks<<endl;
     size_t read;
     fs.open(fname,ios::binary);
     fs.seekg(beg);
     char c[2];
     sprintf(c,"%d",fcnt);
     string str_temp="AESTemp";
-    str_temp.append(c);
+    str_temp.append(c);//Temporary file names
     temp_fs.open(str_temp.c_str(),ios::binary);
-    //get 16 blocks in a loop
     int block=0;
-    //cout<<"Blocks : "<<num_blocks<<endl;
-    while(block<num_blocks && !fs.eof())
+    while(block<num_blocks && !fs.eof())//get 16 (or 32 for encryption, HEX) bytes for each block
     {
         text[16]='\0';
         if(!mode)
         {
-            //cout<<fcnt<<"---START POS : "<<fs.tellg()<<" "<<text<<endl;
             read=fs.read(text,16).gcount();
             if(app_start)
                 while(read<16)
                     text[read++]='\0';
-            //cout<<"READ : "<<read<< " "<<text<<endl;
-            //cout<<"POS : "<<fs.tellg()<<endl;
-            /*while(read<16)
-                text[read++]='\0';*/
-            createState();//CREATES A 4X4 STATE TO BE WORKED ON
+            createState();
         }
         else
         {
-            //cout<<"DEC CUR POS : "<<fs.tellg()<<endl;
             int i=0;
             while(i<16)
             {
                 char c[3];
                 fs.read(c,2);
                 dec_text[i]=strtol(c,NULL,16);
-                //cout<<dec_text[i]<<endl;
                 i++;
             }
             invCreateState();
         }
-        //cout<<"\nPLAIN TEXT\n";
-        //display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
         if(!mode)
-            encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
+            encrypt();
         else
             decrypt();
-        //display();
         for(int j=0;j<4;++j)
         {
             for(int i=0;i<4;++i)
             {
-                //cout<<"VAL : "<<state[j][i]<<endl;
                 if(!mode)
                 {
                     if(((state[j][i]/16)==0))
                         temp_fs<<"0";
-                    //cout<<"j : "<<j<<" i : "<<i<<" "<<state[j][i]<<endl;
                     temp_fs<<hex<<state[j][i];
                 }
                 else
@@ -429,16 +386,12 @@ void block::start(int beg,int num_blocks,int fcnt)
                         temp_fs.close();
                         return;
                     }
-                    //cout<<"i : "<<i<<" j : "<<j<<" "<<(char)state[i][j]<<endl;
                     temp_fs<<(char)state[i][j];
                 }
             }
-            //temp_fs<<endl;
         }
         block++;
     }
-    fs.tellg();//Weird problem if removed.
-    //cout<<"FINAL POS : "<<fs.tellg()<<"----"<<endl;
     fs.close();
     temp_fs.close();
 }
