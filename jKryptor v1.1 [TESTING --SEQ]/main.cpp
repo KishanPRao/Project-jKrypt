@@ -184,11 +184,22 @@ int main()
         filename.clear();
         cout<<"\nMENU\n1) Encrypt\n2) Decrypt\n3) Exit\n\nEnter your choice: \n";
 	choice:        
-	cin>>opt;
+        //;
+        if(!(cin>>opt))
+        {
+            cout<<"\nInvalid Option! Enter choice(1-3): \n";
+            cin.clear();
+            while(cin.get()!='\n');
+            goto choice;
+        }
         switch(opt)
         {
             case 1:
-                cout<<"Enter the file to be encrypted : "<<endl;
+                #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+                system("CLS");
+                #endif
+                cout<<"-----------ENCRYPTION----------\n\n";
+                cout<<"Enter the file to be encrypted : (Output as 'ciphertext.txt')"<<endl;
                 cin>>filename;
                 struct stat s;
                 if(stat(filename.c_str(),&s)==-1)
@@ -196,11 +207,16 @@ int main()
                     cout<<"File Does Not Exist\nPlease Try again\n";
                     break;
                 }
-                begin(filename,JK_ENCRYPT,"c.txt");
-		cout<<"\nFile successfully encrypted! Open file manually to view.\n";
+                begin(filename,JK_ENCRYPT,"ciphertext.txt");
+                cout<<"File successfully encrypted! Open file manually to view.\n\n";
+                cout<<"-----------ENCRYPTION----------\n\n";
                 break;
             case 2:
-                cout<<"Enter the file to be decrypted : "<<endl;
+                #if defined(WIN32) || defined(_WIN32) || defined(__WIN32) && !defined(__CYGWIN__)
+                system("CLS");
+                #endif
+                cout<<"-----------DECRYPTION----------\n\n";
+                cout<<"Enter the file to be decrypted : (Output as 'plaintext.txt')"<<endl;
                 cin>>filename;
                 if(stat(filename.c_str(),&s)==-1)
                 {
@@ -208,12 +224,13 @@ int main()
                     break;
                 }
                 begin(filename,JK_DECRYPT,"plaintext.txt");
-		cout<<"\nFile successfully decrypted! Open file manually to view.\n";
+                cout<<"\nFile successfully decrypted! Open file manually to view.\n\n";
+                cout<<"-----------DECRYPTION----------\n\n";
                 break;
             case 3:
                 exit(0);
             default:
-                cout<<"\n Invalid Option! Enter choice(1-3): \n";
+                cout<<"\nInvalid Option! Enter choice(1-3): \n";
 		goto choice;
         }
     }
@@ -230,7 +247,6 @@ void begin(string fn,unsigned short md,string outfile)
     int fsize=filesize(fn.c_str());//the file sizethread must read
     if(md)
         fsize/=2;
-    //cout<<fsize;
     keyExpansion(); //EXPANDS ONE 16 BYTE BLOCK KEY INTO 10 BLOCKS (16 BYTES EACH) OF KEYS
     block::fname=new char[fn.size()+1];
     strcpy(block::fname,fn.c_str());
@@ -247,6 +263,7 @@ void begin(string fn,unsigned short md,string outfile)
     if(md)
         max*=2;
     //cout<<"Size : "<<fsize<<" Partitions : "<<partitions<<" Single Bl "<<single_block<<" Append : "<<app<<endl;
+    //Critical Values to display
     ///NxOTE: keyExpansion can be called once if the same key is applied to each object. Hence its defined outside the scope of a class.
     remove(outfile.c_str());
         //cout<<"SINGLE\n";
@@ -255,7 +272,6 @@ void begin(string fn,unsigned short md,string outfile)
     max=max+(partitions*16);//For the final block, if append present.
     if(app)
     {
-        //cout<<"APPEND\n";
         app_start=true;
         block single;
         single.single_start(max,1,outfile);
@@ -269,7 +285,10 @@ void begin(string fn,unsigned short md,string outfile)
     else
         str="Encryption";
     cout<<"Time taken for Sequential Execution of "<<str<<" : ("<<diff.tv_sec<<","<<diff.tv_usec<<")"<<endl;
-    //cout<<"\n\Operation successfully executed!\n\n\n";
+    cout<<"\n_________________________________________________";
+    cout<<"\n-------------------------------------------------\n";
+    cout<<"_________________________________________________";
+    cout<<"\n-------------------------------------------------\n\n";
 }
 
 
@@ -283,8 +302,6 @@ void block::single_start(int beg,int num_blocks,string ofile)
     cipher.open(ofile.c_str(),ios::app|ios::binary);
     cipher.seekp(0,ios::end);
     cipher<<input.rdbuf();
-    //cout<<input.rdbuf();
-    //cipher<<get_file_contents("AESTemp-1");
     input.close();
     remove("AESTemp-1");
     cipher.close();
@@ -292,9 +309,6 @@ void block::single_start(int beg,int num_blocks,string ofile)
 
 void block::start(int beg,int num_blocks,int fcnt)
 {
-    //if(mode)
-        //num_blocks/=2;//HEX values are retrieved, having double the character values.
-    //cout<<"BEG : "<<beg<<" BLOCKS : "<<num_blocks<<endl;
     size_t read;
     fs.open(fname,ios::binary);
     fs.seekg(beg);
@@ -303,28 +317,21 @@ void block::start(int beg,int num_blocks,int fcnt)
     string str_temp="AESTemp";
     str_temp.append(c);
     temp_fs.open(str_temp.c_str(),ios::binary);
-    //get 16 blocks in a loop
     int block=0;
-    //cout<<"Blocks : "<<num_blocks<<endl;
     while(block<num_blocks && !fs.eof())
     {
         text[16]='\0';
         if(!mode)
         {
-            //cout<<fcnt<<"---START POS : "<<fs.tellg()<<" "<<text<<endl;
             read=fs.read(text,16).gcount();
             if(app_start)
                 while(read<16)
                     text[read++]='\0';
-            //cout<<"READ : "<<read<< " "<<text<<endl;
-            //cout<<"POS : "<<fs.tellg()<<endl;
-            /*while(read<16)
-                text[read++]='\0';*/
             createState();//CREATES A 4X4 STATE TO BE WORKED ON
+            encrypt();
         }
         else
         {
-            //cout<<"DEC CUR POS : "<<fs.tellg()<<endl;
             int i=0;
             while(i<16)
             {
@@ -335,24 +342,16 @@ void block::start(int beg,int num_blocks,int fcnt)
                 i++;
             }
             invCreateState();
-        }
-        //cout<<"\nPLAIN TEXT\n";
-        //display(); //DISPLAYS CURRENT SITUAUTION OF THE 4X4 BLOCK STATE(int state[4][4]) WHICH IS INITIALLY A PLAINTEXT AND TRANSFORMS INTO A CIPHER TEXT
-        if(!mode)
-            encrypt(); //ENCRYPTS THE STATE CONTAINED IN THE OBJECT OF THE block
-        else
             decrypt();
-        //display();
+        }
         for(int j=0;j<4;++j)
         {
             for(int i=0;i<4;++i)
             {
-                //cout<<"VAL : "<<state[j][i]<<endl;
                 if(!mode)
                 {
                     if(((state[j][i]/16)==0))
                         temp_fs<<"0";
-                    //cout<<"j : "<<j<<" i : "<<i<<" "<<state[j][i]<<endl;
                     temp_fs<<hex<<state[j][i];
                 }
                 else
@@ -363,16 +362,13 @@ void block::start(int beg,int num_blocks,int fcnt)
                         temp_fs.close();
                         return;
                     }
-                    //cout<<"i : "<<i<<" j : "<<j<<" "<<(char)state[i][j]<<endl;
                     temp_fs<<(char)state[i][j];
                 }
             }
-            //temp_fs<<endl;
         }
         block++;
     }
     fs.tellg();//Weird problem if removed.
-    //cout<<"FINAL POS : "<<fs.tellg()<<"----"<<endl;
     fs.close();
     temp_fs.close();
 }

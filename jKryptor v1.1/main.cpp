@@ -178,7 +178,7 @@ int main()
                 system("CLS");
                 #endif
                 cout<<"-----------ENCRYPTION----------\n\n";
-                cout<<"Enter the file to be encrypted : "<<endl;
+                cout<<"Enter the file to be encrypted : (Output as 'ciphertext.txt')"<<endl;
                 cin>>filename;
                 struct stat s;
                 if(stat(filename.c_str(),&s)==-1)
@@ -186,7 +186,7 @@ int main()
                     cout<<"File Does Not Exist\nPlease Try again\n";
                     break;
                 }
-                begin(filename,JK_ENCRYPT,"c.txt");
+                begin(filename,JK_ENCRYPT,"ciphertext.txt");
                 cout<<"File successfully encrypted! Open file manually to view.\n\n";
                 cout<<"-----------ENCRYPTION----------\n\n";
                 break;
@@ -195,7 +195,7 @@ int main()
                 system("CLS");
                 #endif
                 cout<<"-----------DECRYPTION----------\n\n";
-                cout<<"Enter the file to be decrypted : "<<endl;
+                cout<<"Enter the file to be decrypted : (Output as 'plaintext.txt')"<<endl;
                 cin>>filename;
                 if(stat(filename.c_str(),&s)==-1)
                 {
@@ -392,6 +392,7 @@ void block::start(int beg,int num_blocks,int fcnt)
         }
         block++;
     }
+    fs.tellg();//Weird problem for Decryption if removed.
     fs.close();
     temp_fs.close();
 }
