@@ -65,8 +65,7 @@ class block
         int state[4][4],tempState[4][4],temp;
         ifstream fs;//Used as input in the stages
         ofstream temp_fs;//Used as output in the stages
-        char text[17];//Used for encryption
-        int dec_text[17];//Used for decryption
+        int text[16];//Used for encryption
     public:
         static unsigned short mode;
         static char *fname;
@@ -81,20 +80,7 @@ class block
             }
         }
         
-        void invCreateState()
-        {
-            temp=0;
-            for(int j=0;j<4;++j)
-                for(int i=0;i<4;++i)
-                {
-                    //cout<<"i "<<i<<" j "<<j<<" "<<dec_text[temp]<<"\t";
-                    state[j][i]=dec_text[temp++];
-                }
-                //cout<<endl;
-            //display();
-        }
-        
-        void createState()
+        void createState()//Fills state array column-wise
         {
             //int plainText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
             temp=0;
@@ -104,9 +90,8 @@ class block
                     //cout<<"i "<<i<<" j "<<j<<" "<<(int)text[temp]<<"\t";
                     state[i][j]=text[temp++];
                 }
-            //display();
 
-        }
+        }        
 
         ///BELOW CLASS FUNCTIONS MUST NOT BE MODIFIED
         void mixColumns();
@@ -144,32 +129,6 @@ std::string get_file_contents(const char *filename)
   }
 }
 
-long long
-timeval_diff(struct timeval *difference,
-             struct timeval *end_time,
-             struct timeval *start_time
-            )
-{
-  struct timeval temp_diff;
-
-  if(difference==NULL)
-  {
-    difference=&temp_diff;
-  }
-
-  difference->tv_sec =end_time->tv_sec -start_time->tv_sec ;
-  difference->tv_usec=end_time->tv_usec-start_time->tv_usec;
-
-  while(difference->tv_usec<0)
-  {
-    difference->tv_usec+=1000000;
-    difference->tv_sec -=1;
-  }
-
-  return 1000000LL*difference->tv_sec+
-                   difference->tv_usec;
-
-}
 void begin(string,unsigned short,string);
 
 unsigned short block::mode;
@@ -234,16 +193,16 @@ int main()
 		goto choice;
         }
     }
-    /*begin("1.txt",JK_ENCRYPT,"c.txt");
+    /*begin("1kb",JK_ENCRYPT,"c");
     cout<<"-----------------DEC--------------\n";
-    begin("c.txt",JK_DECRYPT,"plaintext.txt");*/
+    begin("c",JK_DECRYPT,"plaintext.txt");*/
     return 0;
 }
 
 void begin(string fn,unsigned short md,string outfile)
 {
-    struct timeval start,stop,diff;
-    gettimeofday(&start,NULL);
+    double start,stop,diff;
+    start=(double)omp_get_wtime();
     int fsize=filesize(fn.c_str());//the file sizethread must read
     if(md)
         fsize/=2;
@@ -277,17 +236,17 @@ void begin(string fn,unsigned short md,string outfile)
         single.single_start(max,1,outfile);
     }
     delete[] block::fname;
-    gettimeofday(&stop,NULL);
-    timeval_diff(&diff,&stop,&start);
+    stop=(double)omp_get_wtime();
+    diff=stop-start;
     string str;
     if(md)
         str="Decryption";
     else
         str="Encryption";
-    cout<<"Time taken for Sequential Execution of "<<str<<" : ("<<diff.tv_sec<<","<<diff.tv_usec<<")"<<endl;
     cout<<"\n_________________________________________________";
     cout<<"\n-------------------------------------------------\n";
-    cout<<"_________________________________________________";
+    cout<<"Time taken for Sequential Execution of "<<str<<" : "<<diff;
+    cout<<"\n_________________________________________________";
     cout<<"\n-------------------------------------------------\n\n";
 }
 
@@ -309,6 +268,7 @@ void block::single_start(int beg,int num_blocks,string ofile)
 
 void block::start(int beg,int num_blocks,int fcnt)
 {
+    //cout<<"BEG : "<<beg<<" Num : "<<num_blocks<<endl;
     size_t read;
     fs.open(fname,ios::binary);
     fs.seekg(beg);
@@ -320,13 +280,24 @@ void block::start(int beg,int num_blocks,int fcnt)
     int block=0;
     while(block<num_blocks && !fs.eof())
     {
-        text[16]='\0';
+        read=0;
         if(!mode)
         {
-            read=fs.read(text,16).gcount();
+            //cout<<"POS : "<<fs.tellg()<<endl;
+            int val;
+            while(read<16&&((val=(int)fs.get())!=EOF))
+            {
+                text[read++]=val;
+                //cout<<"VAl  : "<<(char)val<<" pos : "<<read<<" APP start : "<<app_start<<endl;
+            }
             if(app_start)
                 while(read<16)
-                    text[read++]='\0';
+                    text[read++]=0;
+            /*cout<<"----READ"<<endl;
+            for(int k=0;k<16;k++)
+                cout<<text[k]<<"\t";
+            cout<<"\n--------"<<endl;
+            cout<<"READ POS : "<<fs.tellg()<<endl;*/
             createState();//CREATES A 4X4 STATE TO BE WORKED ON
             encrypt();
         }
@@ -337,11 +308,10 @@ void block::start(int beg,int num_blocks,int fcnt)
             {
                 char c[3];
                 fs.read(c,2);
-                dec_text[i]=strtol(c,NULL,16);
-                //cout<<dec_text[i]<<endl;
+                text[i]=strtol(c,NULL,16);
                 i++;
             }
-            invCreateState();
+            createState();
             decrypt();
         }
         for(int j=0;j<4;++j)
@@ -350,9 +320,9 @@ void block::start(int beg,int num_blocks,int fcnt)
             {
                 if(!mode)
                 {
-                    if(((state[j][i]/16)==0))
+                    if(((state[i][j]/16)==0))
                         temp_fs<<"0";
-                    temp_fs<<hex<<state[j][i];
+                    temp_fs<<hex<<state[i][j];
                 }
                 else
                 {

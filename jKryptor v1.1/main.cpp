@@ -51,8 +51,9 @@ unsigned short inverseSBox[256]={0x52, 0x09, 0x6A, 0xD5, 0x30, 0x36, 0xA5, 0x38,
 ///KEY HANDLING////////////////////////////////////////////////////////////////////////////////////////////////////
 int RC[11]={0,0x1,0x2,0x4,0x8,0x10,0x20,0x40,0x80,0x1B,0x36}, Rcon[4]={0,0,0,0};
 //char keyText[17];
-int keyText[17]={0x0f,0x15,0x71,0xc9,0x47,0xd9,0xe8,0x59,0x0c,0xb7,0xad,0xd6,0xaf,0x7f,0x67,0x98};
+//int keyText[17]={0x0f,0x15,0x71,0xc9,0x47,0xd9,0xe8,0x59,0x0c,0xb7,0xad,0xd6,0xaf,0x7f,0x67,0x98};
 //int keyText[17]={'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p'};
+int keyText[17]={0x0f,0x15,0x71,0xc9,0x47,0xd9,0xe8,0x59,0x0c,0xb7,0xad,0xd6,0xaf,0x7f,0x67,0x98,};
 int roundKey[44][4];
 void keyExpansion();
 /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -65,8 +66,7 @@ class block
         int state[4][4],tempState[4][4],temp;
         ifstream fs;
         ofstream temp_fs;
-        char text[17];
-        int dec_text[17];
+        int text[16];//Used for encryption
     public:
         static unsigned short mode;
         static char *fname;
@@ -87,14 +87,6 @@ class block
             for(int j=0;j<4;++j)
                 for(int i=0;i<4;++i)
                     state[i][j]=text[temp++];
-        }
-
-        void invCreateState()//Need an transposed matrix for decryption, as it receives values in this order
-        {
-            temp=0;
-            for(int j=0;j<4;++j)
-                for(int i=0;i<4;++i)
-                    state[j][i]=dec_text[temp++];
         }
         
         ///BELOW CLASS FUNCTIONS MUST NOT BE MODIFIED
@@ -121,33 +113,6 @@ ifstream::pos_type filesize(const char* filename)
     return val;
 }
 
-//Used for calculating the time differences
-long long
-timeval_diff(struct timeval *difference,
-             struct timeval *end_time,
-             struct timeval *start_time
-            )
-{
-  struct timeval temp_diff;
-
-  if(difference==NULL)
-  {
-    difference=&temp_diff;
-  }
-
-  difference->tv_sec =end_time->tv_sec -start_time->tv_sec ;
-  difference->tv_usec=end_time->tv_usec-start_time->tv_usec;
-
-  while(difference->tv_usec<0)
-  {
-    difference->tv_usec+=1000000;
-    difference->tv_sec -=1;
-  }
-
-  return 1000000LL*difference->tv_sec+
-                   difference->tv_usec;
-
-}
 
 void begin(string,bool,string);
 
@@ -224,8 +189,8 @@ int main()
 
 void begin(string fn,bool md,string outfile)
 {
-    struct timeval start,stop,diff;
-    gettimeofday(&start,NULL);
+    double start,stop,diff;
+    start=(double)omp_get_wtime();
     int fsize=filesize(fn.c_str());
     if(md)
         fsize/=2;
@@ -300,18 +265,19 @@ void begin(string fn,bool md,string outfile)
         single.single_start(max,1,outfile);
     }
     delete[] block::fname;
-    gettimeofday(&stop,NULL);
-    timeval_diff(&diff,&stop,&start);
+    stop=(double)omp_get_wtime();
+    diff=stop-start;
     string str;
     if(md)
         str="Decryption";
     else
         str="Encryption";
-    cout<<"\n_________________________________________________";
-    cout<<"\n-------------------------------------------------\n";
-    cout<<"Time taken for Parallel Execution of "<<str<<" : ("<<diff.tv_sec<<","<<diff.tv_usec<<")"<<endl;
-    cout<<"_________________________________________________";
-    cout<<"\n-------------------------------------------------\n\n";
+    cout<<"\n_______________________________________________";
+    cout<<"\n-----------------------------------------------\n";
+    //cout<<"Time taken for Parallel Execution of "<<str<<" : ("<<diff.tv_sec<<","<<diff.tv_usec<<")"<<endl;
+    cout<<"Time taken for Parallel Execution of "<<str<<" : "<<diff;
+    cout<<"\n_______________________________________________";
+    cout<<"\n-----------------------------------------------\n\n";
 }
 
 
@@ -338,19 +304,22 @@ void block::start(int beg,int num_blocks,int fcnt)
     char c[2];
     sprintf(c,"%d",fcnt);
     string str_temp="AESTemp";
-    str_temp.append(c);//Temporary file names
+    str_temp.append(c);
     temp_fs.open(str_temp.c_str(),ios::binary);
     int block=0;
-    while(block<num_blocks && !fs.eof())//get 16 (or 32 for encryption, HEX) bytes for each block
+    while(block<num_blocks && !fs.eof())
     {
-        text[16]='\0';
+        read=0;
         if(!mode)
         {
-            read=fs.read(text,16).gcount();
+            int val;
+            while(read<16&&((val=(int)fs.get())!=EOF))
+                text[read++]=val;
             if(app_start)
                 while(read<16)
-                    text[read++]='\0';
+                    text[read++]=0;
             createState();
+            encrypt();
         }
         else
         {
@@ -359,24 +328,21 @@ void block::start(int beg,int num_blocks,int fcnt)
             {
                 char c[3];
                 fs.read(c,2);
-                dec_text[i]=strtol(c,NULL,16);
+                text[i]=strtol(c,NULL,16);
                 i++;
             }
-            invCreateState();
-        }
-        if(!mode)
-            encrypt();
-        else
+            createState();
             decrypt();
+        }
         for(int j=0;j<4;++j)
         {
             for(int i=0;i<4;++i)
             {
                 if(!mode)
                 {
-                    if(((state[j][i]/16)==0))
+                    if(((state[i][j]/16)==0))
                         temp_fs<<"0";
-                    temp_fs<<hex<<state[j][i];
+                    temp_fs<<hex<<state[i][j];
                 }
                 else
                 {
@@ -392,7 +358,7 @@ void block::start(int beg,int num_blocks,int fcnt)
         }
         block++;
     }
-    fs.tellg();//Weird problem for Decryption if removed.
+    fs.tellg();//Weird problem if removed.
     fs.close();
     temp_fs.close();
 }
